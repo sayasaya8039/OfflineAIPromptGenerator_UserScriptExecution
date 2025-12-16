@@ -15,21 +15,29 @@ const SYSTEM_PROMPT = `あなたはJavaScriptコード生成の専門家です�
 出力:
 document.body.style.backgroundColor = '#0066cc';
 console.log('背景色を青に変更しました');`;
-async function checkAIAvailability() {
+function getAI() {
   var _a;
+  if (typeof self !== "undefined" && ((_a = self.ai) == null ? void 0 : _a.languageModel)) {
+    return self.ai.languageModel;
+  }
+  return null;
+}
+async function checkAIAvailability() {
   try {
-    if (typeof LanguageModel === "undefined") {
-      if (typeof window !== "undefined" && ((_a = window.ai) == null ? void 0 : _a.languageModel)) {
-        const availability2 = await window.ai.languageModel.availability();
-        return mapAvailability(availability2);
-      }
+    const ai = getAI();
+    if (!ai) {
       return {
         status: "unavailable",
-        message: "Chrome Built-in AI APIが利用できません。Chrome 138以上が必要です。"
+        message: "Chrome Built-in AI APIが利用できません。Chrome 138以上が必要で、chrome://flags でPrompt APIを有効にしてください。"
       };
     }
-    const availability = await LanguageModel.availability();
-    return mapAvailability(availability);
+    try {
+      const capabilities = await ai.capabilities();
+      return mapAvailability(capabilities.available);
+    } catch {
+      const availability = await ai.availability();
+      return mapAvailability(availability);
+    }
   } catch (error) {
     console.error("AI availability check failed:", error);
     return {
@@ -38,8 +46,8 @@ async function checkAIAvailability() {
     };
   }
 }
-function mapAvailability(availability) {
-  switch (availability.available) {
+function mapAvailability(available) {
+  switch (available) {
     case "readily":
       return { status: "ready", message: "AIは利用可能です" };
     case "after-download":
@@ -53,26 +61,23 @@ function mapAvailability(availability) {
         message: "このデバイスではAIを利用できません。システム要件を確認してください。"
       };
     default:
-      return { status: "error", message: "不明なステータスです" };
+      return {
+        status: "error",
+        message: `不明なステータスです: ${available}。chrome://flags でPrompt APIを有効にしてください。`
+      };
   }
 }
 async function getSession() {
-  var _a;
   if (cachedSession) {
     return cachedSession;
   }
-  let languageModel;
-  if (typeof LanguageModel !== "undefined") {
-    languageModel = LanguageModel;
-  } else if (typeof window !== "undefined" && ((_a = window.ai) == null ? void 0 : _a.languageModel)) {
-    languageModel = window.ai.languageModel;
-  } else {
-    throw new Error("LanguageModel APIが利用できません");
+  const ai = getAI();
+  if (!ai) {
+    throw new Error("LanguageModel APIが利用できません。chrome://flags でPrompt APIを有効にしてください。");
   }
-  cachedSession = await languageModel.create({
+  cachedSession = await ai.create({
     systemPrompt: SYSTEM_PROMPT,
     temperature: 0.3,
-    // コード生成は低温度で安定性重視
     topK: 3
   });
   return cachedSession;

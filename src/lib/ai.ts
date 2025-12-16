@@ -4,10 +4,9 @@
  */
 
 import type { AIStatus } from '../types';
-import '../types/chrome-ai.d.ts';
 
 // AIセッションのキャッシュ
-let cachedSession: LanguageModelSession | null = null;
+let cachedSession: AILanguageModelSession | null = null;
 
 // システムプロンプト（コード生成用）
 const SYSTEM_PROMPT = `あなたはJavaScriptコード生成の専門家です。
@@ -27,26 +26,75 @@ const SYSTEM_PROMPT = `あなたはJavaScriptコード生成の専門家です�
 document.body.style.backgroundColor = '#0066cc';
 console.log('背景色を青に変更しました');`;
 
+// 型定義（Chrome AI API）
+interface AILanguageModel {
+  availability(): Promise<string>;
+  capabilities(): Promise<AILanguageModelCapabilities>;
+  create(options?: AILanguageModelCreateOptions): Promise<AILanguageModelSession>;
+}
+
+interface AILanguageModelCapabilities {
+  available: 'readily' | 'after-download' | 'no';
+  defaultTemperature?: number;
+  defaultTopK?: number;
+  maxTopK?: number;
+}
+
+interface AILanguageModelCreateOptions {
+  systemPrompt?: string;
+  temperature?: number;
+  topK?: number;
+}
+
+interface AILanguageModelSession {
+  prompt(input: string): Promise<string>;
+  promptStreaming(input: string): ReadableStream<string>;
+  destroy(): void;
+}
+
+interface AI {
+  languageModel?: AILanguageModel;
+}
+
+// グローバルスコープの拡張
+declare const self: {
+  ai?: AI;
+} & typeof globalThis;
+
+/**
+ * AI APIを取得
+ */
+function getAI(): AILanguageModel | null {
+  // Service Worker環境: self.ai
+  if (typeof self !== 'undefined' && self.ai?.languageModel) {
+    return self.ai.languageModel;
+  }
+  return null;
+}
+
 /**
  * AI利用可能状態をチェック
  */
 export async function checkAIAvailability(): Promise<{ status: AIStatus; message?: string }> {
   try {
-    // LanguageModel APIが存在するか確認
-    if (typeof LanguageModel === 'undefined') {
-      // フォールバック: window.ai を確認
-      if (typeof window !== 'undefined' && window.ai?.languageModel) {
-        const availability = await window.ai.languageModel.availability();
-        return mapAvailability(availability);
-      }
+    const ai = getAI();
+
+    if (!ai) {
       return {
         status: 'unavailable',
-        message: 'Chrome Built-in AI APIが利用できません。Chrome 138以上が必要です。',
+        message: 'Chrome Built-in AI APIが利用できません。Chrome 138以上が必要で、chrome://flags でPrompt APIを有効にしてください。',
       };
     }
 
-    const availability = await LanguageModel.availability();
-    return mapAvailability(availability);
+    // capabilities() を使用（より詳細な情報が取得できる）
+    try {
+      const capabilities = await ai.capabilities();
+      return mapAvailability(capabilities.available);
+    } catch {
+      // capabilities()が失敗した場合はavailability()を試す
+      const availability = await ai.availability();
+      return mapAvailability(availability);
+    }
   } catch (error) {
     console.error('AI availability check failed:', error);
     return {
@@ -59,8 +107,8 @@ export async function checkAIAvailability(): Promise<{ status: AIStatus; message
 /**
  * 利用可能性をステータスにマッピング
  */
-function mapAvailability(availability: LanguageModelAvailability): { status: AIStatus; message?: string } {
-  switch (availability.available) {
+function mapAvailability(available: string): { status: AIStatus; message?: string } {
+  switch (available) {
     case 'readily':
       return { status: 'ready', message: 'AIは利用可能です' };
     case 'after-download':
@@ -74,31 +122,29 @@ function mapAvailability(availability: LanguageModelAvailability): { status: AIS
         message: 'このデバイスではAIを利用できません。システム要件を確認してください。',
       };
     default:
-      return { status: 'error', message: '不明なステータスです' };
+      return {
+        status: 'error',
+        message: `不明なステータスです: ${available}。chrome://flags でPrompt APIを有効にしてください。`
+      };
   }
 }
 
 /**
  * AIセッションを取得（キャッシュ利用）
  */
-async function getSession(): Promise<LanguageModelSession> {
+async function getSession(): Promise<AILanguageModelSession> {
   if (cachedSession) {
     return cachedSession;
   }
 
-  let languageModel: LanguageModel;
-
-  if (typeof LanguageModel !== 'undefined') {
-    languageModel = LanguageModel;
-  } else if (typeof window !== 'undefined' && window.ai?.languageModel) {
-    languageModel = window.ai.languageModel;
-  } else {
-    throw new Error('LanguageModel APIが利用できません');
+  const ai = getAI();
+  if (!ai) {
+    throw new Error('LanguageModel APIが利用できません。chrome://flags でPrompt APIを有効にしてください。');
   }
 
-  cachedSession = await languageModel.create({
+  cachedSession = await ai.create({
     systemPrompt: SYSTEM_PROMPT,
-    temperature: 0.3, // コード生成は低温度で安定性重視
+    temperature: 0.3,
     topK: 3,
   });
 
@@ -125,47 +171,7 @@ JavaScriptコードのみを出力してください:`;
     return codeMatch[1].trim();
   }
 
-  // そのまま返す
   return response.trim();
-}
-
-/**
- * ストリーミングでコード生成
- */
-export async function generateScriptStreaming(
-  userPrompt: string,
-  onChunk: (chunk: string) => void
-): Promise<string> {
-  const session = await getSession();
-
-  const fullPrompt = `以下の指示に従って、ウェブページで実行するJavaScriptコードを生成してください。
-
-指示: ${userPrompt}
-
-JavaScriptコードのみを出力してください:`;
-
-  const stream = session.promptStreaming(fullPrompt);
-  const reader = stream.getReader();
-  let fullResponse = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      fullResponse += value;
-      onChunk(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  // コードブロックが含まれている場合は抽出
-  const codeMatch = fullResponse.match(/```(?:javascript|js)?\s*([\s\S]*?)```/);
-  if (codeMatch) {
-    return codeMatch[1].trim();
-  }
-
-  return fullResponse.trim();
 }
 
 /**
