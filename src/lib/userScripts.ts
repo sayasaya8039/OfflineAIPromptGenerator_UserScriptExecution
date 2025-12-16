@@ -190,15 +190,21 @@ export async function showSummaryOverlay(tabId: number, summary: string): Promis
               background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
             }
             #ai-summary-overlay .summary-header h2 {
-              color: #E0F2FE;
+              color: #FFFFFF;
             }
             #ai-summary-overlay .summary-content {
-              color: #CBD5E1;
+              color: #F1F5F9;
             }
             #ai-summary-overlay .summary-content h1,
             #ai-summary-overlay .summary-content h2,
             #ai-summary-overlay .summary-content h3 {
               color: #7DD3FC;
+            }
+            #ai-summary-overlay .summary-content strong {
+              color: #FFFFFF;
+            }
+            #ai-summary-overlay .summary-content li {
+              color: #F1F5F9;
             }
           }
           #ai-summary-overlay .summary-header {
