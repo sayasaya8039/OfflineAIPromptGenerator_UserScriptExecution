@@ -181,29 +181,44 @@ function extractCode(response) {
   }
   return response.trim();
 }
+let scriptCounter = 0;
 async function executeScript(tabId, code) {
-  var _a;
   const startTime = Date.now();
+  const scriptId = `ai-script-${++scriptCounter}`;
   try {
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: executeUserCode,
-      args: [code],
-      world: "ISOLATED"
-      // 拡張機能の分離環境で実行
-    });
-    const result = (_a = results[0]) == null ? void 0 : _a.result;
-    if (result && typeof result === "object" && "success" in result) {
-      return {
-        success: result.success,
-        result: result.result,
-        error: result.error,
-        executedAt: startTime
-      };
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab.url) {
+      throw new Error("タブのURLを取得できません");
     }
+    if (tab.url.startsWith("chrome://") || tab.url.startsWith("edge://") || tab.url.startsWith("about:")) {
+      throw new Error("このページではスクリプトを実行できません");
+    }
+    try {
+      const existingScripts = await chrome.userScripts.getScripts();
+      if (existingScripts.length > 0) {
+        await chrome.userScripts.unregister({ ids: existingScripts.map((s) => s.id) });
+      }
+    } catch {
+    }
+    const url = new URL(tab.url);
+    const matchPattern = `${url.protocol}//${url.host}/*`;
+    await chrome.userScripts.register([{
+      id: scriptId,
+      matches: [matchPattern],
+      js: [{ code: wrapCode(code) }],
+      runAt: "document_end",
+      world: "MAIN"
+    }]);
+    await chrome.tabs.reload(tabId);
+    setTimeout(async () => {
+      try {
+        await chrome.userScripts.unregister({ ids: [scriptId] });
+      } catch {
+      }
+    }, 3e3);
     return {
       success: true,
-      result,
+      result: "スクリプトを実行しました",
       executedAt: startTime
     };
   } catch (error) {
@@ -215,17 +230,17 @@ async function executeScript(tabId, code) {
     };
   }
 }
-function executeUserCode(code) {
+function wrapCode(code) {
+  return `
+(function() {
   try {
-    const fn = new Function(code);
-    const result = fn();
-    return { success: true, result };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    };
+    ${code}
+    console.log('[AI Script] 実行完了');
+  } catch (e) {
+    console.error('[AI Script] エラー:', e);
   }
+})();
+`;
 }
 async function getCurrentTab() {
   try {

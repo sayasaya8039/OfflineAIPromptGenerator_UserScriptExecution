@@ -1,43 +1,74 @@
 /**
  * スクリプト実行モジュール
- * Content Script方式でCSP制限を回避
+ * chrome.userScripts APIを使用して動的コード実行
  */
 
 import type { ScriptExecutionResult } from '../types';
 
+// スクリプトIDのカウンター
+let scriptCounter = 0;
+
 /**
  * 指定タブでスクリプトを実行
- * ISOLATED worldでCSPを完全に回避
+ * userScripts APIでスクリプトを登録し、ページをリロードして実行
  */
 export async function executeScript(
   tabId: number,
   code: string
 ): Promise<ScriptExecutionResult> {
   const startTime = Date.now();
+  const scriptId = `ai-script-${++scriptCounter}`;
 
   try {
-    // ISOLATED worldで実行（CSPの影響を受けない）
-    const results = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: executeUserCode,
-      args: [code],
-      world: 'ISOLATED', // 拡張機能の分離環境で実行
-    });
-
-    const result = results[0]?.result;
-
-    if (result && typeof result === 'object' && 'success' in result) {
-      return {
-        success: result.success as boolean,
-        result: result.result,
-        error: result.error as string | undefined,
-        executedAt: startTime,
-      };
+    // 現在のタブのURLを取得
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab.url) {
+      throw new Error('タブのURLを取得できません');
     }
+
+    // chrome:// や edge:// などの特殊ページはスキップ
+    if (tab.url.startsWith('chrome://') || tab.url.startsWith('edge://') || tab.url.startsWith('about:')) {
+      throw new Error('このページではスクリプトを実行できません');
+    }
+
+    // 既存のスクリプトをすべて削除
+    try {
+      const existingScripts = await chrome.userScripts.getScripts();
+      if (existingScripts.length > 0) {
+        await chrome.userScripts.unregister({ ids: existingScripts.map(s => s.id) });
+      }
+    } catch {
+      // 無視
+    }
+
+    // URLパターンを作成
+    const url = new URL(tab.url);
+    const matchPattern = `${url.protocol}//${url.host}/*`;
+
+    // userScripts APIでスクリプトを登録
+    await chrome.userScripts.register([{
+      id: scriptId,
+      matches: [matchPattern],
+      js: [{ code: wrapCode(code) }],
+      runAt: 'document_end',
+      world: 'MAIN',
+    }]);
+
+    // ページをリロードしてスクリプトを実行
+    await chrome.tabs.reload(tabId);
+
+    // 少し待ってからスクリプトを削除（一度だけ実行）
+    setTimeout(async () => {
+      try {
+        await chrome.userScripts.unregister({ ids: [scriptId] });
+      } catch {
+        // 無視
+      }
+    }, 3000);
 
     return {
       success: true,
-      result: result,
+      result: 'スクリプトを実行しました',
       executedAt: startTime,
     };
   } catch (error) {
@@ -51,21 +82,19 @@ export async function executeScript(
 }
 
 /**
- * ユーザーコードを実行する関数
- * この関数はページのコンテキストで実行される
+ * コードをラップしてエラーハンドリングを追加
  */
-function executeUserCode(code: string): { success: boolean; result?: unknown; error?: string } {
+function wrapCode(code: string): string {
+  return `
+(function() {
   try {
-    // Function コンストラクタでコードを実行
-    const fn = new Function(code);
-    const result = fn();
-    return { success: true, result };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    ${code}
+    console.log('[AI Script] 実行完了');
+  } catch (e) {
+    console.error('[AI Script] エラー:', e);
   }
+})();
+`;
 }
 
 /**
