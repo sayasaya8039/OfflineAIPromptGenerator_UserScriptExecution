@@ -181,42 +181,18 @@ function extractCode(response) {
   }
   return response.trim();
 }
-function isScriptingAvailable() {
-  return typeof chrome !== "undefined" && typeof chrome.scripting !== "undefined";
-}
 async function executeScript(tabId, code) {
-  var _a;
   const startTime = Date.now();
   try {
-    if (!isScriptingAvailable()) {
-      throw new Error("chrome.scripting APIが利用できません");
-    }
-    const results = await chrome.scripting.executeScript({
+    await chrome.scripting.executeScript({
       target: { tabId },
-      func: (codeToExecute) => {
-        try {
-          const fn = new Function(codeToExecute);
-          const result = fn();
-          return { success: true, result };
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : String(error)
-          };
-        }
-      },
+      func: injectScript,
       args: [code],
       world: "MAIN"
-      // ページのコンテキストで実行
     });
-    const executionResult = (_a = results[0]) == null ? void 0 : _a.result;
-    if (!executionResult) {
-      throw new Error("スクリプトの実行結果を取得できませんでした");
-    }
     return {
-      success: executionResult.success,
-      result: executionResult.result,
-      error: executionResult.error,
+      success: true,
+      result: "スクリプトを実行しました",
       executedAt: startTime
     };
   } catch (error) {
@@ -227,6 +203,12 @@ async function executeScript(tabId, code) {
       executedAt: startTime
     };
   }
+}
+function injectScript(codeToExecute) {
+  const script = document.createElement("script");
+  script.textContent = codeToExecute;
+  (document.head || document.documentElement).appendChild(script);
+  script.remove();
 }
 async function getCurrentTab() {
   try {

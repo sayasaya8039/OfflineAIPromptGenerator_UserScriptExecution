@@ -6,24 +6,8 @@
 import type { ScriptExecutionResult } from '../types';
 
 /**
- * User Scripts APIの利用可能性をチェック
- */
-export function isUserScriptsAvailable(): boolean {
-  return typeof chrome !== 'undefined' &&
-         typeof chrome.userScripts !== 'undefined';
-}
-
-/**
- * scripting APIの利用可能性をチェック（フォールバック用）
- */
-export function isScriptingAvailable(): boolean {
-  return typeof chrome !== 'undefined' &&
-         typeof chrome.scripting !== 'undefined';
-}
-
-/**
- * 指定タブでスクリプトを実行（chrome.scripting.executeScript使用）
- * User Scripts APIより簡単で、動的コード実行に適している
+ * 指定タブでスクリプトを実行
+ * scriptタグ注入方式でCSPを回避
  */
 export async function executeScript(
   tabId: number,
@@ -32,40 +16,17 @@ export async function executeScript(
   const startTime = Date.now();
 
   try {
-    if (!isScriptingAvailable()) {
-      throw new Error('chrome.scripting APIが利用できません');
-    }
-
-    // chrome.scripting.executeScript で直接実行
-    const results = await chrome.scripting.executeScript({
+    // chrome.scripting.executeScript で scriptタグを注入
+    await chrome.scripting.executeScript({
       target: { tabId },
-      func: (codeToExecute: string) => {
-        try {
-          // eval代わりにFunctionコンストラクタを使用
-          const fn = new Function(codeToExecute);
-          const result = fn();
-          return { success: true, result };
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : String(error),
-          };
-        }
-      },
+      func: injectScript,
       args: [code],
-      world: 'MAIN', // ページのコンテキストで実行
+      world: 'MAIN',
     });
 
-    const executionResult = results[0]?.result as { success: boolean; result?: unknown; error?: string } | undefined;
-
-    if (!executionResult) {
-      throw new Error('スクリプトの実行結果を取得できませんでした');
-    }
-
     return {
-      success: executionResult.success,
-      result: executionResult.result,
-      error: executionResult.error,
+      success: true,
+      result: 'スクリプトを実行しました',
       executedAt: startTime,
     };
   } catch (error) {
@@ -79,57 +40,19 @@ export async function executeScript(
 }
 
 /**
- * User Scripts APIでスクリプトを登録
- * 永続的に適用したい場合に使用
+ * ページ内で実行される関数
+ * scriptタグを動的に作成してコードを実行
  */
-export async function registerUserScript(
-  id: string,
-  code: string,
-  matches: string[] = ['<all_urls>']
-): Promise<void> {
-  if (!isUserScriptsAvailable()) {
-    throw new Error('chrome.userScripts APIが利用できません。拡張機能の設定で「ユーザースクリプトを許可」を有効にしてください。');
-  }
+function injectScript(codeToExecute: string): void {
+  // scriptタグを作成
+  const script = document.createElement('script');
+  script.textContent = codeToExecute;
 
-  // 既存のスクリプトを削除
-  try {
-    await chrome.userScripts.unregister({ ids: [id] });
-  } catch {
-    // 存在しない場合はエラーを無視
-  }
+  // ページに挿入（即座に実行される）
+  (document.head || document.documentElement).appendChild(script);
 
-  // 新しいスクリプトを登録
-  await chrome.userScripts.register([
-    {
-      id,
-      matches,
-      js: [{ code }],
-      runAt: 'document_idle',
-      world: 'MAIN',
-    },
-  ]);
-}
-
-/**
- * 登録済みユーザースクリプトを削除
- */
-export async function unregisterUserScript(id: string): Promise<void> {
-  if (!isUserScriptsAvailable()) {
-    throw new Error('chrome.userScripts APIが利用できません');
-  }
-
-  await chrome.userScripts.unregister({ ids: [id] });
-}
-
-/**
- * 全ての登録済みスクリプトを取得
- */
-export async function getRegisteredScripts(): Promise<chrome.userScripts.RegisteredUserScript[]> {
-  if (!isUserScriptsAvailable()) {
-    return [];
-  }
-
-  return await chrome.userScripts.getScripts();
+  // 実行後にタグを削除
+  script.remove();
 }
 
 /**
