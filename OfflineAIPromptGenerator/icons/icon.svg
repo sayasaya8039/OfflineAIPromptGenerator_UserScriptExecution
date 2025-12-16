@@ -1,16 +1,58 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#38BDF8"/>
-      <stop offset="100%" style="stop-color:#7DD3FC"/>
+      <stop offset="0%" style="stop-color:#7DD3FC"/>
+      <stop offset="100%" style="stop-color:#38BDF8"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF"/>
+      <stop offset="100%" style="stop-color:#E0F2FE"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FDE68A"/>
+      <stop offset="100%" style="stop-color:#FBBF24"/>
     </linearGradient>
   </defs>
-  <rect width="128" height="128" rx="24" fill="url(#bg)"/>
-  <circle cx="64" cy="50" r="28" fill="none" stroke="#0C4A6E" stroke-width="4"/>
-  <circle cx="52" cy="42" r="4" fill="#0C4A6E"/>
-  <circle cx="76" cy="42" r="4" fill="#0C4A6E"/>
-  <path d="M50 56 Q64 68 78 56" fill="none" stroke="#0C4A6E" stroke-width="3" stroke-linecap="round"/>
-  <text x="28" y="105" font-family="monospace" font-size="32" font-weight="bold" fill="#0C4A6E">{</text>
-  <text x="88" y="105" font-family="monospace" font-size="32" font-weight="bold" fill="#0C4A6E">}</text>
-  <polygon points="64,78 56,94 62,94 58,110 72,90 66,90 70,78" fill="#FDE68A"/>
+
+  <!-- Background -->
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+
+  <!-- Sparkles -->
+  <circle cx="20" cy="24" r="4" fill="#FDE68A" opacity="0.9"/>
+  <circle cx="108" cy="20" r="3" fill="#FDE68A" opacity="0.8"/>
+  <circle cx="100" cy="100" r="5" fill="#FDE68A" opacity="0.7"/>
+  <circle cx="16" cy="90" r="3" fill="#FDE68A" opacity="0.8"/>
+
+  <!-- Robot Head -->
+  <ellipse cx="64" cy="58" rx="38" ry="36" fill="url(#face)"/>
+
+  <!-- Antenna -->
+  <line x1="64" y1="22" x2="64" y2="10" stroke="#0EA5E9" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="64" cy="8" r="6" fill="url(#spark)"/>
+
+  <!-- Ears/Side parts -->
+  <rect x="18" y="48" width="10" height="20" rx="4" fill="#0EA5E9"/>
+  <rect x="100" y="48" width="10" height="20" rx="4" fill="#0EA5E9"/>
+
+  <!-- Eyes - Cute sparkly -->
+  <ellipse cx="48" cy="52" rx="10" ry="12" fill="#0C4A6E"/>
+  <ellipse cx="80" cy="52" rx="10" ry="12" fill="#0C4A6E"/>
+  <circle cx="44" cy="48" r="4" fill="#FFFFFF"/>
+  <circle cx="76" cy="48" r="4" fill="#FFFFFF"/>
+  <circle cx="50" cy="56" r="2" fill="#FFFFFF" opacity="0.6"/>
+  <circle cx="82" cy="56" r="2" fill="#FFFFFF" opacity="0.6"/>
+
+  <!-- Cheeks - Blush -->
+  <ellipse cx="32" cy="64" rx="8" ry="5" fill="#FDA4AF" opacity="0.6"/>
+  <ellipse cx="96" cy="64" rx="8" ry="5" fill="#FDA4AF" opacity="0.6"/>
+
+  <!-- Smile -->
+  <path d="M52 72 Q64 82 76 72" fill="none" stroke="#0C4A6E" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Code bracket badge -->
+  <rect x="38" y="96" width="52" height="24" rx="8" fill="#0C4A6E"/>
+  <text x="44" y="114" font-family="monospace" font-size="16" font-weight="bold" fill="#7DD3FC">&lt;/&gt;</text>
+
+  <!-- Small lightning bolt on badge -->
+  <polygon points="74,100 70,108 74,108 71,116 80,106 76,106 78,100" fill="url(#spark)"/>
 </svg>
