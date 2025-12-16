@@ -1,0 +1,340 @@
+/**
+ * ポップアップスタイル
+ * パステル水色系 + ダークモード対応
+ */
+
+:root {
+  /* ライトモードカラー */
+  --bg-primary: #F0F9FF;
+  --bg-secondary: #E0F2FE;
+  --bg-tertiary: #BAE6FD;
+  --text-primary: #334155;
+  --text-secondary: #64748B;
+  --accent: #7DD3FC;
+  --accent-hover: #38BDF8;
+  --success: #A7F3D0;
+  --success-text: #065F46;
+  --error: #FECACA;
+  --error-text: #991B1B;
+  --warning: #FDE68A;
+  --border: #BAE6FD;
+  --shadow: rgba(125, 211, 252, 0.2);
+
+  /* スペーシング */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+
+  /* 角丸 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+}
+
+/* ダークモード */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #0F172A;
+    --bg-secondary: #1E293B;
+    --bg-tertiary: #334155;
+    --text-primary: #E0F2FE;
+    --text-secondary: #94A3B8;
+    --accent: #38BDF8;
+    --accent-hover: #7DD3FC;
+    --success: #065F46;
+    --success-text: #A7F3D0;
+    --error: #7F1D1D;
+    --error-text: #FECACA;
+    --border: #475569;
+    --shadow: rgba(56, 189, 248, 0.1);
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-width: 400px;
+  max-width: 450px;
+}
+
+.popup-container {
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+/* ヘッダー */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 2px solid var(--border);
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.version {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ステータスバッジ */
+.status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+}
+
+.badge-checking {
+  background: var(--warning);
+  color: #92400E;
+}
+
+.badge-ready {
+  background: var(--success);
+  color: var(--success-text);
+}
+
+.badge-downloading {
+  background: var(--accent);
+  color: #0369A1;
+}
+
+.badge-unavailable,
+.badge-error {
+  background: var(--error);
+  color: var(--error-text);
+}
+
+/* ステータスメッセージ */
+.status-message {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.status-checking,
+.status-downloading {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.status-unavailable,
+.status-error {
+  background: var(--error);
+  color: var(--error-text);
+}
+
+/* 現在のページ情報 */
+.current-page {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.current-page .label {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.current-page .url {
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 入力セクション */
+.input-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.input-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.prompt-input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 70px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.prompt-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--shadow);
+}
+
+.prompt-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.prompt-input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* ボタン */
+.action-buttons {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.btn {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: #0C4A6E;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.btn-small {
+  flex: none;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 12px;
+}
+
+.btn-execute {
+  background: var(--success);
+  color: var(--success-text);
+}
+
+/* コードセクション */
+.code-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.code-block {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm);
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.code-block code {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 結果セクション */
+.result-section {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+}
+
+.result-section.success {
+  background: var(--success);
+  color: var(--success-text);
+}
+
+.result-section.error {
+  background: var(--error);
+  color: var(--error-text);
+}
+
+.result-header {
+  font-weight: 600;
+  margin-bottom: var(--spacing-xs);
+}
+
+.result-error,
+.result-value {
+  font-size: 12px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  word-break: break-all;
+}
+
+/* フッター */
+.footer {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--border);
+}
