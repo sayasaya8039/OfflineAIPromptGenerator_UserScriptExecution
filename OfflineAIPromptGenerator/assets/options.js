@@ -1,5 +1,21 @@
 import { r as reactExports, j as jsxRuntimeExports, c as clientExports } from "./client-DYnfPcRQ.js";
-const VERSION = "1.1.0";
+const VERSION = "1.3.0";
+const CHROME_FLAGS = [
+  {
+    id: "prompt-api",
+    url: "chrome://flags/#prompt-api-for-gemini-nano",
+    name: "Prompt API for Gemini Nano",
+    value: "Enabled",
+    description: "Gemini Nano AIモデルを有効化"
+  },
+  {
+    id: "optimization-guide",
+    url: "chrome://flags/#optimization-guide-on-device-model",
+    name: "Enables optimization guide on device",
+    value: "Enabled BypassPerfRequirement",
+    description: "オンデバイスモデルを有効化（性能要件をバイパス）"
+  }
+];
 function Options() {
   const [settings, setSettings] = reactExports.useState({
     provider: "gemini",
@@ -8,6 +24,55 @@ function Options() {
   });
   const [saved, setSaved] = reactExports.useState(false);
   const [loading, setLoading] = reactExports.useState(true);
+  const [chromeAIStatus, setChromeAIStatus] = reactExports.useState("checking");
+  const [chromeAIMessage, setChromeAIMessage] = reactExports.useState("");
+  const [copiedFlag, setCopiedFlag] = reactExports.useState(null);
+  const checkChromeAI = reactExports.useCallback(async () => {
+    var _a;
+    setChromeAIStatus("checking");
+    setChromeAIMessage("Chrome AIの状態を確認中...");
+    try {
+      if (typeof self !== "undefined" && ((_a = self.ai) == null ? void 0 : _a.languageModel)) {
+        const languageModel = self.ai.languageModel;
+        let availability;
+        if (typeof languageModel.availability === "function") {
+          availability = await languageModel.availability();
+        } else if (typeof languageModel.capabilities === "function") {
+          const caps = await languageModel.capabilities();
+          availability = caps.available;
+        } else {
+          setChromeAIStatus("not-available");
+          setChromeAIMessage("Chrome AI APIが見つかりません");
+          return;
+        }
+        switch (availability) {
+          case "readily":
+          case "ready":
+            setChromeAIStatus("ready");
+            setChromeAIMessage("Chrome AI準備完了！すぐに使用できます");
+            break;
+          case "after-download":
+          case "downloadable":
+            setChromeAIStatus("downloading");
+            setChromeAIMessage("AIモデルのダウンロードが必要です。Chromeが自動でダウンロードを開始します");
+            break;
+          case "downloading":
+            setChromeAIStatus("downloading");
+            setChromeAIMessage("AIモデルをダウンロード中...しばらくお待ちください");
+            break;
+          default:
+            setChromeAIStatus("not-available");
+            setChromeAIMessage("Chrome AIが利用できません。以下の手順で設定してください");
+        }
+      } else {
+        setChromeAIStatus("not-available");
+        setChromeAIMessage("Chrome AIが利用できません。以下の手順で設定してください");
+      }
+    } catch (error) {
+      setChromeAIStatus("error");
+      setChromeAIMessage(`エラー: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, []);
   reactExports.useEffect(() => {
     chrome.storage.local.get("settings", (result) => {
       if (result.settings) {
@@ -16,6 +81,20 @@ function Options() {
       setLoading(false);
     });
   }, []);
+  reactExports.useEffect(() => {
+    if (settings.provider === "chrome-ai") {
+      checkChromeAI();
+    }
+  }, [settings.provider, checkChromeAI]);
+  const copyToClipboard = async (text, flagId) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedFlag(flagId);
+      setTimeout(() => setCopiedFlag(null), 2e3);
+    } catch (error) {
+      console.error("コピーに失敗しました:", error);
+    }
+  };
   const handleSave = async () => {
     await chrome.storage.local.set({ settings });
     setSaved(true);
@@ -151,17 +230,95 @@ function Options() {
                   /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "provider-name", children: "Chrome Built-in AI" }),
                   /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "provider-badge experimental", children: "実験的" })
                 ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "provider-description", children: "オフラインで動作。Chrome 138+とフラグ設定が必要です。" }),
-                settings.provider === "chrome-ai" && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "chrome-ai-info", children: [
-                  /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "必要な設定:" }),
-                  /* @__PURE__ */ jsxRuntimeExports.jsxs("ol", { children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { children: [
-                      /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: "chrome://flags/#prompt-api-for-gemini-nano" }),
-                      " → Enabled"
+                /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "provider-description", children: "Gemini Nano搭載。オフラインで動作、APIキー不要、完全無料。" }),
+                settings.provider === "chrome-ai" && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "chrome-ai-setup", onClick: (e) => e.stopPropagation(), children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `chrome-ai-status status-${chromeAIStatus}`, children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "status-icon", children: [
+                      chromeAIStatus === "checking" && "🔄",
+                      chromeAIStatus === "ready" && "✅",
+                      chromeAIStatus === "downloading" && "⏳",
+                      chromeAIStatus === "not-available" && "⚠️",
+                      chromeAIStatus === "error" && "❌"
                     ] }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { children: [
-                      /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: "chrome://flags/#optimization-guide-on-device-model" }),
-                      " → Enabled BypassPerfRequirement"
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "status-text", children: chromeAIMessage }),
+                    chromeAIStatus !== "checking" && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "button",
+                      {
+                        className: "btn-refresh",
+                        onClick: checkChromeAI,
+                        title: "再チェック",
+                        children: "🔄"
+                      }
+                    )
+                  ] }),
+                  chromeAIStatus === "ready" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "chrome-ai-ready", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Chrome AIはすぐに使用できます。設定を保存して使い始めましょう！" }) }),
+                  chromeAIStatus === "downloading" && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "chrome-ai-downloading", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "download-info", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "モデルサイズ: 約1.7GB" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "バックグラウンドでダウンロードされます。完了後に再度確認してください。" })
+                  ] }) }),
+                  (chromeAIStatus === "not-available" || chromeAIStatus === "error") && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "chrome-ai-guide", children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { children: "セットアップガイド" }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "requirements", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("h5", { children: "📋 動作要件" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsxs("ul", { children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: "Chrome バージョン 138 以上（推奨: 140以上）" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: "メモリ: 16GB以上推奨" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: "ストレージ: 22GB以上の空き容量" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: "GPU: 4GB VRAM以上、またはCPU: 4コア以上" })
+                      ] })
+                    ] }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "setup-steps", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("h5", { children: "🔧 設定手順" }),
+                      CHROME_FLAGS.map((flag, index) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "setup-step", children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "step-number", children: [
+                          "Step ",
+                          index + 1
+                        ] }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "step-content", children: [
+                          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "step-description", children: flag.description }),
+                          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flag-url-container", children: [
+                            /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "flag-url", children: flag.url }),
+                            /* @__PURE__ */ jsxRuntimeExports.jsx(
+                              "button",
+                              {
+                                className: `btn-copy ${copiedFlag === flag.id ? "copied" : ""}`,
+                                onClick: () => copyToClipboard(flag.url, flag.id),
+                                children: copiedFlag === flag.id ? "✓ コピー済み" : "📋 コピー"
+                              }
+                            )
+                          ] }),
+                          /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "step-value", children: [
+                            "設定値: ",
+                            /* @__PURE__ */ jsxRuntimeExports.jsx("strong", { children: flag.value })
+                          ] })
+                        ] })
+                      ] }, flag.id)),
+                      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "setup-step", children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "step-number", children: "Step 3" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "step-content", children: [
+                          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "step-description", children: "Chromeを再起動" }),
+                          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "step-hint", children: "設定変更後、Chromeを完全に終了して再起動してください。" })
+                        ] })
+                      ] }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "setup-step", children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "step-number", children: "Step 4" }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "step-content", children: [
+                          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "step-description", children: "モデルのダウンロードを待つ" }),
+                          /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "step-hint", children: "初回は約1.7GBのモデルがダウンロードされます。 バックグラウンドで行われるため、しばらくお待ちください。" })
+                        ] })
+                      ] })
+                    ] }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "reference-links", children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("h5", { children: "📚 参考リンク" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        "a",
+                        {
+                          href: "https://developer.chrome.com/docs/ai/get-started",
+                          target: "_blank",
+                          rel: "noopener noreferrer",
+                          children: "Chrome AI 公式ドキュメント"
+                        }
+                      )
                     ] })
                   ] })
                 ] })

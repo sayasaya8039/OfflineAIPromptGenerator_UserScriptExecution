@@ -211,26 +211,248 @@ body {
   text-decoration: underline;
 }
 
-.chrome-ai-info {
+/* Chrome AI セットアップセクション */
+.chrome-ai-setup {
   padding-top: 12px;
   border-top: 1px solid var(--border);
+}
+
+/* ステータス表示 */
+.chrome-ai-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.chrome-ai-status.status-checking {
+  background: var(--bg-secondary);
+}
+
+.chrome-ai-status.status-ready {
+  background: #D1FAE5;
+}
+
+.chrome-ai-status.status-downloading {
+  background: #FEF3C7;
+}
+
+.chrome-ai-status.status-not-available,
+.chrome-ai-status.status-error {
+  background: #FEE2E2;
+}
+
+@media (prefers-color-scheme: dark) {
+  .chrome-ai-status.status-ready {
+    background: #065F46;
+  }
+  .chrome-ai-status.status-downloading {
+    background: #92400E;
+  }
+  .chrome-ai-status.status-not-available,
+  .chrome-ai-status.status-error {
+    background: #7F1D1D;
+  }
+}
+
+.status-icon {
+  font-size: 18px;
+}
+
+.status-text {
+  flex: 1;
   font-size: 13px;
+  font-weight: 500;
 }
 
-.chrome-ai-info ol {
-  margin-top: 8px;
-  padding-left: 20px;
+.btn-refresh {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
 }
 
-.chrome-ai-info li {
+.btn-refresh:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* 準備完了表示 */
+.chrome-ai-ready {
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.chrome-ai-ready p {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ダウンロード中表示 */
+.chrome-ai-downloading {
+  padding: 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+}
+
+.download-info p {
+  font-size: 13px;
   margin-bottom: 4px;
 }
 
-.chrome-ai-info code {
-  background: var(--bg-tertiary);
-  padding: 2px 6px;
-  border-radius: 4px;
+/* セットアップガイド */
+.chrome-ai-guide {
+  font-size: 13px;
+}
+
+.chrome-ai-guide h4 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: var(--text-primary);
+}
+
+.chrome-ai-guide h5 {
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+/* 動作要件 */
+.requirements {
+  background: var(--bg-secondary);
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.requirements ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.requirements li {
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+}
+
+/* ステップバイステップ */
+.setup-steps {
+  margin-bottom: 20px;
+}
+
+.setup-step {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.setup-step:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.step-number {
+  background: var(--accent);
+  color: #0C4A6E;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+  height: fit-content;
+}
+
+.step-content {
+  flex: 1;
+}
+
+.step-description {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.step-hint {
   font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* フラグURL表示 */
+.flag-url-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.flag-url {
+  flex: 1;
+  background: var(--bg-tertiary);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  word-break: break-all;
+  user-select: all;
+}
+
+.btn-copy {
+  background: var(--accent);
+  color: #0C4A6E;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.btn-copy:hover {
+  background: var(--accent-hover);
+}
+
+.btn-copy.copied {
+  background: var(--success);
+  color: white;
+}
+
+.step-value {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.step-value strong {
+  color: var(--accent);
+  font-family: 'Consolas', monospace;
+}
+
+/* 参考リンク */
+.reference-links {
+  background: var(--bg-secondary);
+  padding: 12px 16px;
+  border-radius: 8px;
+}
+
+.reference-links a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.reference-links a:hover {
+  text-decoration: underline;
 }
 
 .actions {

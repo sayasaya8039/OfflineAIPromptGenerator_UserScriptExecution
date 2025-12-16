@@ -1,5 +1,5 @@
 import { r as reactExports, j as jsxRuntimeExports, c as clientExports } from "./client-DYnfPcRQ.js";
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 const PROVIDER_NAMES = {
   "chrome-ai": "Chrome AI",
   "gemini": "Gemini",

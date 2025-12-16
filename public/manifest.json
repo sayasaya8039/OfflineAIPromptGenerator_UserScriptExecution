@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Offline AI Script Generator",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "AI（Gemini/OpenAI/Chrome AI）でJavaScriptコードを自動生成し、ページに即実行できるChrome拡張機能",
   "icons": {
     "16": "icons/icon16.png",
