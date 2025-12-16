@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { AIStatus, AIProvider, ScriptExecutionResult, MessageResponse } from '../types';
 import './styles/popup.css';
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 
 const PROVIDER_NAMES: Record<AIProvider, string> = {
   'chrome-ai': 'Chrome AI',

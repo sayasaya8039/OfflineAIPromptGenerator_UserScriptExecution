@@ -1,19 +1,77 @@
 const SYSTEM_PROMPT = `あなたはJavaScriptコード生成の専門家です。
-ユーザーの指示に基づいて、ウェブページで実行可能なJavaScriptコードを生成してください。
+ユーザーの自然言語による指示を、ウェブページで即座に実行可能なJavaScriptコードに変換します。
 
-ルール:
-1. 純粋なJavaScriptコードのみを出力（説明文やマークダウンは不要）
-2. コードは即時実行可能な形式で
-3. document や window などのブラウザAPIを活用
-4. エラーハンドリングを含める
-5. 結果を console.log で出力するか、ページに視覚的に反映させる
-6. コードブロック(\`\`\`)で囲まない、純粋なJSコードのみ
+【絶対ルール】
+- 純粋なJavaScriptコードのみを出力する
+- 説明文、コメント、マークダウン記法は一切不要
+- コードブロック(\`\`\`javascript や \`\`\`)で囲まない
+- 「はい」「わかりました」などの応答は不要
 
-例:
-指示: 「ページの背景色を青にする」
-出力:
-document.body.style.backgroundColor = '#0066cc';
-console.log('背景色を青に変更しました');`;
+【コード要件】
+- 即時実行可能な形式（関数定義のみは不可）
+- document, window, DOM APIを適切に使用
+- querySelectorAll, getElementByIdなどで要素を取得
+- 処理完了時はconsole.logで結果を出力
+- try-catchでエラーを適切にハンドリング
+
+【出力形式】
+コードのみを出力。以下の形式で：
+(function() {
+  // 処理コード
+})();`;
+const INITIAL_PROMPTS_CODE = [
+  {
+    role: "user",
+    content: "指示: ページの背景色を青にする\n\nJavaScriptコードのみを出力:"
+  },
+  {
+    role: "assistant",
+    content: `(function() {
+  try {
+    document.body.style.backgroundColor = '#0066cc';
+    console.log('背景色を青に変更しました');
+  } catch(e) {
+    console.error('エラー:', e.message);
+  }
+})();`
+  },
+  {
+    role: "user",
+    content: "指示: 全ての画像をグレースケールにする\n\nJavaScriptコードのみを出力:"
+  },
+  {
+    role: "assistant",
+    content: `(function() {
+  try {
+    const images = document.querySelectorAll('img');
+    images.forEach(img => {
+      img.style.filter = 'grayscale(100%)';
+    });
+    console.log(images.length + '個の画像をグレースケールに変更しました');
+  } catch(e) {
+    console.error('エラー:', e.message);
+  }
+})();`
+  },
+  {
+    role: "user",
+    content: "指示: ページ内のリンクを全て赤色にする\n\nJavaScriptコードのみを出力:"
+  },
+  {
+    role: "assistant",
+    content: `(function() {
+  try {
+    const links = document.querySelectorAll('a');
+    links.forEach(link => {
+      link.style.color = '#ff0000';
+    });
+    console.log(links.length + '個のリンクを赤色に変更しました');
+  } catch(e) {
+    console.error('エラー:', e.message);
+  }
+})();`
+  }
+];
 async function getSettings() {
   const result = await chrome.storage.local.get("settings");
   return result.settings || { provider: "gemini", geminiApiKey: "", openaiApiKey: "" };
@@ -38,16 +96,60 @@ async function checkChromeAI() {
   var _a;
   try {
     if (typeof self !== "undefined" && ((_a = self.ai) == null ? void 0 : _a.languageModel)) {
-      const capabilities = await self.ai.languageModel.capabilities();
-      if (capabilities.available === "readily") {
-        return { status: "ready", message: "Chrome AI準備完了", provider: "chrome-ai" };
-      } else if (capabilities.available === "after-download") {
-        return { status: "downloading", message: "AIモデルをダウンロード中", provider: "chrome-ai" };
+      const languageModel = self.ai.languageModel;
+      let availability;
+      if (typeof languageModel.availability === "function") {
+        availability = await languageModel.availability();
+      } else if (typeof languageModel.capabilities === "function") {
+        const caps = await languageModel.capabilities();
+        availability = caps.available;
+      } else {
+        return {
+          status: "unavailable",
+          message: "Chrome AI APIが見つかりません",
+          provider: "chrome-ai"
+        };
+      }
+      let paramsInfo = "";
+      if (typeof languageModel.params === "function") {
+        try {
+          const params = await languageModel.params();
+          paramsInfo = ` (topK: ${params.defaultTopK}, temp: ${params.defaultTemperature})`;
+        } catch {
+        }
+      }
+      switch (availability) {
+        case "readily":
+        case "ready":
+          return {
+            status: "ready",
+            message: `Chrome AI準備完了${paramsInfo}`,
+            provider: "chrome-ai"
+          };
+        case "after-download":
+        case "downloadable":
+          return {
+            status: "downloading",
+            message: "AIモデルのダウンロードが必要です",
+            provider: "chrome-ai"
+          };
+        case "downloading":
+          return {
+            status: "downloading",
+            message: "AIモデルをダウンロード中...",
+            provider: "chrome-ai"
+          };
+        default:
+          return {
+            status: "unavailable",
+            message: "Chrome AIが利用できません。Gemini APIまたはOpenAI APIを設定してください。",
+            provider: "chrome-ai"
+          };
       }
     }
     return {
       status: "unavailable",
-      message: "Chrome AIが利用できません。Gemini APIまたはOpenAI APIを設定してください。",
+      message: "Chrome AIが利用できません。Chromeフラグを有効化してください。",
       provider: "chrome-ai"
     };
   } catch (error) {
@@ -96,17 +198,38 @@ async function generateWithChromeAI(userPrompt) {
   if (!((_a = self.ai) == null ? void 0 : _a.languageModel)) {
     throw new Error("Chrome AIが利用できません");
   }
-  const session = await self.ai.languageModel.create({
+  const languageModel = self.ai.languageModel;
+  const sessionOptions = {
     systemPrompt: SYSTEM_PROMPT,
-    temperature: 0.3,
-    topK: 3
-  });
-  const fullPrompt = `指示: ${userPrompt}
+    // 精度向上: より低いtemperatureで決定的な出力
+    temperature: 0.1,
+    topK: 3,
+    // Few-shot学習: 具体例を提供してモデルの出力形式を誘導
+    initialPrompts: INITIAL_PROMPTS_CODE
+  };
+  try {
+    const availability = await languageModel.availability({
+      expectedInputLanguages: ["ja"],
+      expectedOutputLanguages: ["ja"]
+    });
+    if (availability === "readily" || availability === "ready") {
+      sessionOptions.expectedInputLanguages = ["ja"];
+      sessionOptions.expectedOutputLanguages = ["ja"];
+    }
+  } catch {
+  }
+  const session = await languageModel.create(sessionOptions);
+  try {
+    const fullPrompt = `指示: ${userPrompt}
 
 JavaScriptコードのみを出力:`;
-  const response = await session.prompt(fullPrompt);
-  session.destroy();
-  return extractCode(response);
+    const response = await session.prompt(fullPrompt);
+    return extractCode(response);
+  } finally {
+    if (session.destroy) {
+      session.destroy();
+    }
+  }
 }
 async function generateWithGemini(userPrompt, apiKey) {
   var _a, _b, _c, _d, _e, _f;
@@ -175,25 +298,58 @@ JavaScriptコードのみを出力:` }
   return extractCode(text);
 }
 function extractCode(response) {
-  const codeMatch = response.match(/```(?:javascript|js)?\s*([\s\S]*?)```/);
-  if (codeMatch) {
-    return codeMatch[1].trim();
+  let code = response.trim();
+  const codeBlockMatch = code.match(/```(?:javascript|js)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    code = codeBlockMatch[1].trim();
   }
-  return response.trim();
+  code = code.replace(/^(はい|わかりました|承知しました|以下|コード)[、。：:\s]*/i, "");
+  code = code.replace(/\n\n(このコード|上記|以上|これで)[^\n]*$/i, "");
+  code = code.replace(/^>\s*/gm, "");
+  if (!code || code.length < 5) {
+    throw new Error("有効なコードを生成できませんでした");
+  }
+  return code;
 }
 const SUMMARIZE_PROMPT = `あなたは文章要約の専門家です。
 与えられたウェブページのテキストを要約してください。
 
-【重要】元の言語に関係なく、必ず日本語で要約を出力してください。
-英語、中国語、韓国語など、どの言語のページでも日本語に翻訳して要約します。
+【絶対ルール】
+- 必ず日本語で出力する（英語等のページも日本語に翻訳して要約）
+- 元の文章にない情報は絶対に追加しない
+- 推測や解釈は含めない
 
-ルール:
-1. 必ず日本語で出力する（翻訳＋要約）
-2. 重要なポイントを箇条書きで3-5点にまとめる
-3. 最初に1-2文で全体の概要を述べる
-4. 専門用語があれば簡単に説明を加える
-5. マークダウン形式で出力（見出し、箇条書きを使用）
-6. 元の文章にない情報は追加しない`;
+【出力形式】
+## 概要
+1-2文で全体の内容を要約
+
+## 主要ポイント
+- ポイント1
+- ポイント2
+- ポイント3
+（3-5点）
+
+## キーワード
+重要な用語をカンマ区切りで列挙`;
+const INITIAL_PROMPTS_SUMMARIZE = [
+  {
+    role: "user",
+    content: "以下のテキストを要約してください:\n\nReact is a JavaScript library for building user interfaces. It lets you compose complex UIs from small and isolated pieces of code called components."
+  },
+  {
+    role: "assistant",
+    content: `## 概要
+ReactはユーザーインターフェースをつくるためのJavaScriptライブラリです。
+
+## 主要ポイント
+- JavaScriptライブラリである
+- UIの構築に特化している
+- コンポーネントという小さな部品を組み合わせて複雑なUIを作成する
+
+## キーワード
+React, JavaScript, ライブラリ, UI, コンポーネント`
+  }
+];
 async function summarizeText(text) {
   const settings = await getSettings();
   const maxLength = 15e3;
@@ -214,16 +370,34 @@ async function summarizeWithChromeAI(text) {
   if (!((_a = self.ai) == null ? void 0 : _a.languageModel)) {
     throw new Error("Chrome AIが利用できません");
   }
-  const session = await self.ai.languageModel.create({
+  const languageModel = self.ai.languageModel;
+  const sessionOptions = {
     systemPrompt: SUMMARIZE_PROMPT,
     temperature: 0.3,
-    topK: 3
-  });
-  const response = await session.prompt(`以下のテキストを要約してください:
+    topK: 5,
+    // Few-shot学習: 具体例を提供
+    initialPrompts: INITIAL_PROMPTS_SUMMARIZE
+  };
+  try {
+    const availability = await languageModel.availability({
+      expectedOutputLanguages: ["ja"]
+    });
+    if (availability === "readily" || availability === "ready") {
+      sessionOptions.expectedOutputLanguages = ["ja"];
+    }
+  } catch {
+  }
+  const session = await languageModel.create(sessionOptions);
+  try {
+    const response = await session.prompt(`以下のテキストを要約してください:
 
 ${text}`);
-  session.destroy();
-  return response;
+    return response;
+  } finally {
+    if (session.destroy) {
+      session.destroy();
+    }
+  }
 }
 async function summarizeWithGemini(text, apiKey) {
   var _a, _b, _c, _d, _e, _f;
