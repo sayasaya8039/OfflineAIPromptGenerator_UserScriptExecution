@@ -182,17 +182,28 @@ function extractCode(response) {
   return response.trim();
 }
 async function executeScript(tabId, code) {
+  var _a;
   const startTime = Date.now();
   try {
-    await chrome.scripting.executeScript({
+    const results = await chrome.scripting.executeScript({
       target: { tabId },
-      func: injectScript,
+      func: executeUserCode,
       args: [code],
-      world: "MAIN"
+      world: "ISOLATED"
+      // 拡張機能の分離環境で実行
     });
+    const result = (_a = results[0]) == null ? void 0 : _a.result;
+    if (result && typeof result === "object" && "success" in result) {
+      return {
+        success: result.success,
+        result: result.result,
+        error: result.error,
+        executedAt: startTime
+      };
+    }
     return {
       success: true,
-      result: "スクリプトを実行しました",
+      result,
       executedAt: startTime
     };
   } catch (error) {
@@ -204,11 +215,17 @@ async function executeScript(tabId, code) {
     };
   }
 }
-function injectScript(codeToExecute) {
-  const script = document.createElement("script");
-  script.textContent = codeToExecute;
-  (document.head || document.documentElement).appendChild(script);
-  script.remove();
+function executeUserCode(code) {
+  try {
+    const fn = new Function(code);
+    const result = fn();
+    return { success: true, result };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
 async function getCurrentTab() {
   try {

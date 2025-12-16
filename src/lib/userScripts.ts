@@ -1,13 +1,13 @@
 /**
- * Chrome User Scripts API 連携モジュール
- * 生成されたスクリプトをページに注入・実行する
+ * スクリプト実行モジュール
+ * Content Script方式でCSP制限を回避
  */
 
 import type { ScriptExecutionResult } from '../types';
 
 /**
  * 指定タブでスクリプトを実行
- * scriptタグ注入方式でCSPを回避
+ * ISOLATED worldでCSPを完全に回避
  */
 export async function executeScript(
   tabId: number,
@@ -16,17 +16,28 @@ export async function executeScript(
   const startTime = Date.now();
 
   try {
-    // chrome.scripting.executeScript で scriptタグを注入
-    await chrome.scripting.executeScript({
+    // ISOLATED worldで実行（CSPの影響を受けない）
+    const results = await chrome.scripting.executeScript({
       target: { tabId },
-      func: injectScript,
+      func: executeUserCode,
       args: [code],
-      world: 'MAIN',
+      world: 'ISOLATED', // 拡張機能の分離環境で実行
     });
+
+    const result = results[0]?.result;
+
+    if (result && typeof result === 'object' && 'success' in result) {
+      return {
+        success: result.success as boolean,
+        result: result.result,
+        error: result.error as string | undefined,
+        executedAt: startTime,
+      };
+    }
 
     return {
       success: true,
-      result: 'スクリプトを実行しました',
+      result: result,
       executedAt: startTime,
     };
   } catch (error) {
@@ -40,19 +51,21 @@ export async function executeScript(
 }
 
 /**
- * ページ内で実行される関数
- * scriptタグを動的に作成してコードを実行
+ * ユーザーコードを実行する関数
+ * この関数はページのコンテキストで実行される
  */
-function injectScript(codeToExecute: string): void {
-  // scriptタグを作成
-  const script = document.createElement('script');
-  script.textContent = codeToExecute;
-
-  // ページに挿入（即座に実行される）
-  (document.head || document.documentElement).appendChild(script);
-
-  // 実行後にタグを削除
-  script.remove();
+function executeUserCode(code: string): { success: boolean; result?: unknown; error?: string } {
+  try {
+    // Function コンストラクタでコードを実行
+    const fn = new Function(code);
+    const result = fn();
+    return { success: true, result };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 /**
