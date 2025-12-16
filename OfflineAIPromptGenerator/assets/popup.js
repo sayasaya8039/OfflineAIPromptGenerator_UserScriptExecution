@@ -1,5 +1,5 @@
 import { r as reactExports, j as jsxRuntimeExports, c as clientExports } from "./client-DYnfPcRQ.js";
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const PROVIDER_NAMES = {
   "chrome-ai": "Chrome AI",
   "gemini": "Gemini",
@@ -13,6 +13,7 @@ function Popup() {
   const [currentProvider, setCurrentProvider] = reactExports.useState("gemini");
   const [isGenerating, setIsGenerating] = reactExports.useState(false);
   const [isExecuting, setIsExecuting] = reactExports.useState(false);
+  const [isSummarizing, setIsSummarizing] = reactExports.useState(false);
   const [executionResult, setExecutionResult] = reactExports.useState(null);
   const [currentTabId, setCurrentTabId] = reactExports.useState(null);
   const [currentUrl, setCurrentUrl] = reactExports.useState("");
@@ -121,6 +122,32 @@ function Popup() {
       setIsExecuting(false);
     }
   }, [prompt, currentTabId, isGenerating, isExecuting]);
+  const handleSummarize = reactExports.useCallback(async () => {
+    if (!currentTabId || isSummarizing) return;
+    setIsSummarizing(true);
+    setExecutionResult(null);
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "SUMMARIZE_PAGE",
+        tabId: currentTabId
+      });
+      if (response.type === "ERROR") {
+        setExecutionResult({
+          success: false,
+          error: response.message,
+          executedAt: Date.now()
+        });
+      }
+    } catch (error) {
+      setExecutionResult({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        executedAt: Date.now()
+      });
+    } finally {
+      setIsSummarizing(false);
+    }
+  }, [currentTabId, isSummarizing]);
   const getStatusBadge = () => {
     const badges = {
       checking: { class: "badge-checking", text: "確認中..." },
@@ -155,6 +182,15 @@ function Popup() {
       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "label", children: "対象ページ:" }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "url", title: currentUrl, children: currentUrl.length > 40 ? currentUrl.substring(0, 40) + "..." : currentUrl })
     ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "button",
+      {
+        className: "btn btn-summarize",
+        onClick: handleSummarize,
+        disabled: !isReady || !currentTabId || isSummarizing,
+        children: isSummarizing ? "要約中..." : "📝 このページを要約"
+      }
+    ),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "input-section", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("label", { htmlFor: "prompt", className: "input-label", children: "やりたいこと:" }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(

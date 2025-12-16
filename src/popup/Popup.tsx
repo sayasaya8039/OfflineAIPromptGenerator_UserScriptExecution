@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import type { AIStatus, AIProvider, ScriptExecutionResult, MessageResponse } from '../types';
 import './styles/popup.css';
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 
 const PROVIDER_NAMES: Record<AIProvider, string> = {
   'chrome-ai': 'Chrome AI',
@@ -22,6 +22,7 @@ export function Popup() {
   const [currentProvider, setCurrentProvider] = useState<AIProvider>('gemini');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isSummarizing, setIsSummarizing] = useState(false);
   const [executionResult, setExecutionResult] = useState<ScriptExecutionResult | null>(null);
   const [currentTabId, setCurrentTabId] = useState<number | null>(null);
   const [currentUrl, setCurrentUrl] = useState('');
@@ -156,6 +157,37 @@ export function Popup() {
     }
   }, [prompt, currentTabId, isGenerating, isExecuting]);
 
+  // ページ要約
+  const handleSummarize = useCallback(async () => {
+    if (!currentTabId || isSummarizing) return;
+
+    setIsSummarizing(true);
+    setExecutionResult(null);
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'SUMMARIZE_PAGE',
+        tabId: currentTabId,
+      }) as MessageResponse;
+
+      if (response.type === 'ERROR') {
+        setExecutionResult({
+          success: false,
+          error: response.message,
+          executedAt: Date.now(),
+        });
+      }
+    } catch (error) {
+      setExecutionResult({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        executedAt: Date.now(),
+      });
+    } finally {
+      setIsSummarizing(false);
+    }
+  }, [currentTabId, isSummarizing]);
+
   // AIステータスに応じたバッジ
   const getStatusBadge = () => {
     const badges: Record<AIStatus, { class: string; text: string }> = {
@@ -206,6 +238,15 @@ export function Popup() {
           </span>
         </div>
       )}
+
+      {/* ページ要約ボタン */}
+      <button
+        className="btn btn-summarize"
+        onClick={handleSummarize}
+        disabled={!isReady || !currentTabId || isSummarizing}
+      >
+        {isSummarizing ? '要約中...' : '📝 このページを要約'}
+      </button>
 
       {/* 入力エリア */}
       <div className="input-section">

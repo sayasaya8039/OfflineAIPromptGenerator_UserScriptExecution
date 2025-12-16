@@ -46,7 +46,8 @@ export type MessageType =
   | { type: 'EXECUTE_SCRIPT'; code: string; tabId: number }
   | { type: 'GET_CURRENT_TAB' }
   | { type: 'GET_SETTINGS' }
-  | { type: 'SAVE_SETTINGS'; settings: Settings };
+  | { type: 'SAVE_SETTINGS'; settings: Settings }
+  | { type: 'SUMMARIZE_PAGE'; tabId: number };
 
 export type MessageResponse =
   | { type: 'AI_STATUS'; status: AIStatus; message?: string; provider?: AIProvider }
@@ -55,4 +56,5 @@ export type MessageResponse =
   | { type: 'CURRENT_TAB'; tabId: number; url: string }
   | { type: 'SETTINGS'; settings: Settings }
   | { type: 'SETTINGS_SAVED' }
+  | { type: 'SUMMARIZE_RESULT'; success: boolean; summary?: string; error?: string }
   | { type: 'ERROR'; message: string };

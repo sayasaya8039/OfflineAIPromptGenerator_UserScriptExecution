@@ -112,3 +112,201 @@ export async function getCurrentTab(): Promise<{ tabId: number; url: string } | 
     return null;
   }
 }
+
+/**
+ * ページのテキストを抽出
+ */
+export async function extractPageText(tabId: number): Promise<string> {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      // 不要な要素を除外してテキストを抽出
+      const excludeSelectors = ['script', 'style', 'noscript', 'nav', 'header', 'footer', 'aside', 'iframe'];
+      const clone = document.body.cloneNode(true) as HTMLElement;
+
+      excludeSelectors.forEach(selector => {
+        clone.querySelectorAll(selector).forEach(el => el.remove());
+      });
+
+      // テキストを取得して整形
+      const text = clone.innerText || clone.textContent || '';
+      return text
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .join('\n');
+    },
+  });
+
+  return results[0]?.result || '';
+}
+
+/**
+ * 要約をオーバーレイで表示
+ */
+export async function showSummaryOverlay(tabId: number, summary: string): Promise<void> {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    args: [summary],
+    func: (summaryText: string) => {
+      // 既存のオーバーレイを削除
+      const existingOverlay = document.getElementById('ai-summary-overlay');
+      if (existingOverlay) {
+        existingOverlay.remove();
+      }
+
+      // オーバーレイコンテナを作成
+      const overlay = document.createElement('div');
+      overlay.id = 'ai-summary-overlay';
+      overlay.innerHTML = `
+        <style>
+          #ai-summary-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2147483647;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+          }
+          #ai-summary-overlay .summary-card {
+            background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 700px;
+            max-height: 80vh;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+          }
+          @media (prefers-color-scheme: dark) {
+            #ai-summary-overlay .summary-card {
+              background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+            }
+            #ai-summary-overlay .summary-header h2 {
+              color: #E0F2FE;
+            }
+            #ai-summary-overlay .summary-content {
+              color: #CBD5E1;
+            }
+            #ai-summary-overlay .summary-content h1,
+            #ai-summary-overlay .summary-content h2,
+            #ai-summary-overlay .summary-content h3 {
+              color: #7DD3FC;
+            }
+          }
+          #ai-summary-overlay .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #BAE6FD;
+          }
+          #ai-summary-overlay .summary-header h2 {
+            margin: 0;
+            color: #0C4A6E;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          #ai-summary-overlay .close-btn {
+            background: #38BDF8;
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+          }
+          #ai-summary-overlay .close-btn:hover {
+            background: #0EA5E9;
+          }
+          #ai-summary-overlay .summary-content {
+            overflow-y: auto;
+            color: #334155;
+            line-height: 1.7;
+            font-size: 15px;
+          }
+          #ai-summary-overlay .summary-content h1,
+          #ai-summary-overlay .summary-content h2,
+          #ai-summary-overlay .summary-content h3 {
+            color: #0369A1;
+            margin-top: 16px;
+            margin-bottom: 8px;
+          }
+          #ai-summary-overlay .summary-content ul,
+          #ai-summary-overlay .summary-content ol {
+            padding-left: 24px;
+            margin: 8px 0;
+          }
+          #ai-summary-overlay .summary-content li {
+            margin: 6px 0;
+          }
+          #ai-summary-overlay .summary-content p {
+            margin: 8px 0;
+          }
+          #ai-summary-overlay .summary-content strong {
+            color: #0C4A6E;
+          }
+        </style>
+        <div class="summary-card">
+          <div class="summary-header">
+            <h2>📝 ページ要約</h2>
+            <button class="close-btn" title="閉じる">×</button>
+          </div>
+          <div class="summary-content"></div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+
+      // マークダウンを簡易的にHTMLに変換
+      const contentEl = overlay.querySelector('.summary-content') as HTMLElement;
+      const htmlContent = summaryText
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/^\* (.+)$/gm, '<li>$1</li>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+
+      contentEl.innerHTML = `<p>${htmlContent}</p>`;
+
+      // 閉じるボタン
+      const closeBtn = overlay.querySelector('.close-btn');
+      closeBtn?.addEventListener('click', () => overlay.remove());
+
+      // 背景クリックで閉じる
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          overlay.remove();
+        }
+      });
+
+      // ESCキーで閉じる
+      const escHandler = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          overlay.remove();
+          document.removeEventListener('keydown', escHandler);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
+    },
+  });
+}

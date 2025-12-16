@@ -374,3 +374,33 @@ body {
   background: var(--warning);
   color: #92400E;
 }
+
+/* 要約ボタン */
+.btn-summarize {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: linear-gradient(135deg, #A78BFA, #8B5CF6);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-summarize:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.btn-summarize:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn-summarize {
+    background: linear-gradient(135deg, #8B5CF6, #7C3AED);
+  }
+}

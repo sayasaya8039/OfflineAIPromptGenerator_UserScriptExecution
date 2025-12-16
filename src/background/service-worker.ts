@@ -3,8 +3,8 @@
  * AI生成とスクリプト実行のメッセージハンドリング
  */
 
-import { checkAIAvailability, generateScript, getSettings, saveSettings } from '../lib/ai';
-import { executeScript, getCurrentTab } from '../lib/userScripts';
+import { checkAIAvailability, generateScript, getSettings, saveSettings, summarizeText } from '../lib/ai';
+import { executeScript, getCurrentTab, extractPageText, showSummaryOverlay } from '../lib/userScripts';
 import type { MessageType, MessageResponse } from '../types';
 
 // メッセージリスナー
@@ -65,6 +65,22 @@ async function handleMessage(message: MessageType): Promise<MessageResponse> {
     case 'SAVE_SETTINGS': {
       await saveSettings(message.settings);
       return { type: 'SETTINGS_SAVED' };
+    }
+
+    case 'SUMMARIZE_PAGE': {
+      // ページテキストを抽出
+      const pageText = await extractPageText(message.tabId);
+      if (!pageText || pageText.length < 100) {
+        throw new Error('ページからテキストを抽出できませんでした');
+      }
+
+      // AIで要約
+      const summary = await summarizeText(pageText);
+
+      // オーバーレイで表示
+      await showSummaryOverlay(message.tabId, summary);
+
+      return { type: 'SUMMARIZE_RESULT', success: true, summary };
     }
 
     default:

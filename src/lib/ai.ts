@@ -237,3 +237,130 @@ function extractCode(response: string): string {
   }
   return response.trim();
 }
+
+// 要約用システムプロンプト
+const SUMMARIZE_PROMPT = `あなたは文章要約の専門家です。
+与えられたウェブページのテキストを、日本語で簡潔に要約してください。
+
+ルール:
+1. 重要なポイントを箇条書きで3-5点にまとめる
+2. 最初に1-2文で全体の概要を述べる
+3. 専門用語があれば簡単に説明を加える
+4. マークダウン形式で出力（見出し、箇条書きを使用）
+5. 元の文章にない情報は追加しない`;
+
+/**
+ * ページテキストを要約
+ */
+export async function summarizeText(text: string): Promise<string> {
+  const settings = await getSettings();
+
+  // テキストが長すぎる場合は切り詰め
+  const maxLength = 15000;
+  const truncatedText = text.length > maxLength
+    ? text.substring(0, maxLength) + '\n\n[...以下省略...]'
+    : text;
+
+  switch (settings.provider) {
+    case 'chrome-ai':
+      return summarizeWithChromeAI(truncatedText);
+    case 'gemini':
+      return summarizeWithGemini(truncatedText, settings.geminiApiKey);
+    case 'openai':
+      return summarizeWithOpenAI(truncatedText, settings.openaiApiKey);
+    default:
+      throw new Error('不明なプロバイダーです');
+  }
+}
+
+/**
+ * Chrome Built-in AI で要約
+ */
+async function summarizeWithChromeAI(text: string): Promise<string> {
+  // @ts-expect-error - Chrome AI API
+  if (!self.ai?.languageModel) {
+    throw new Error('Chrome AIが利用できません');
+  }
+
+  // @ts-expect-error - Chrome AI API
+  const session = await self.ai.languageModel.create({
+    systemPrompt: SUMMARIZE_PROMPT,
+    temperature: 0.3,
+    topK: 3,
+  });
+
+  const response = await session.prompt(`以下のテキストを要約してください:\n\n${text}`);
+  session.destroy();
+
+  return response;
+}
+
+/**
+ * Gemini API で要約
+ */
+async function summarizeWithGemini(text: string, apiKey: string): Promise<string> {
+  if (!apiKey) {
+    throw new Error('Gemini APIキーが設定されていません');
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `${SUMMARIZE_PROMPT}\n\n以下のテキストを要約してください:\n\n${text}`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 2048,
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Gemini API エラー: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '要約を生成できませんでした';
+}
+
+/**
+ * OpenAI API で要約
+ */
+async function summarizeWithOpenAI(text: string, apiKey: string): Promise<string> {
+  if (!apiKey) {
+    throw new Error('OpenAI APIキーが設定されていません');
+  }
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: SUMMARIZE_PROMPT },
+        { role: 'user', content: `以下のテキストを要約してください:\n\n${text}` }
+      ],
+      temperature: 0.3,
+      max_tokens: 2048
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`OpenAI API エラー: ${error.error?.message || response.statusText}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '要約を生成できませんでした';
+}
