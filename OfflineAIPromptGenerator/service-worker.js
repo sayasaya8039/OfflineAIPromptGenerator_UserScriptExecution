@@ -421,21 +421,29 @@ async function showSummaryOverlay(tabId, summary) {
               background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
             }
             #ai-summary-overlay .summary-header h2 {
-              color: #FFFFFF;
+              color: #FFFFFF !important;
             }
             #ai-summary-overlay .summary-content {
-              color: #F1F5F9;
+              color: #FFFFFF !important;
+            }
+            #ai-summary-overlay .summary-content p,
+            #ai-summary-overlay .summary-content span {
+              color: #FFFFFF !important;
             }
             #ai-summary-overlay .summary-content h1,
             #ai-summary-overlay .summary-content h2,
             #ai-summary-overlay .summary-content h3 {
-              color: #7DD3FC;
+              color: #7DD3FC !important;
             }
             #ai-summary-overlay .summary-content strong {
-              color: #FFFFFF;
+              color: #FFFFFF !important;
             }
             #ai-summary-overlay .summary-content li {
-              color: #F1F5F9;
+              color: #FFFFFF !important;
+            }
+            #ai-summary-overlay .summary-content ul,
+            #ai-summary-overlay .summary-content ol {
+              color: #FFFFFF !important;
             }
           }
           #ai-summary-overlay .summary-header {
