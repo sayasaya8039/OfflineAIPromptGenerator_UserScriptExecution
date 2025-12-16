@@ -1,4 +1,3 @@
-let cachedSession = null;
 const SYSTEM_PROMPT = `あなたはJavaScriptコード生成の専門家です。
 ユーザーの指示に基づいて、ウェブページで実行可能なJavaScriptコードを生成してください。
 
@@ -15,92 +14,172 @@ const SYSTEM_PROMPT = `あなたはJavaScriptコード生成の専門家です�
 出力:
 document.body.style.backgroundColor = '#0066cc';
 console.log('背景色を青に変更しました');`;
-function getAI() {
-  var _a;
-  if (typeof self !== "undefined" && ((_a = self.ai) == null ? void 0 : _a.languageModel)) {
-    return self.ai.languageModel;
-  }
-  return null;
+async function getSettings() {
+  const result = await chrome.storage.local.get("settings");
+  return result.settings || { provider: "gemini", geminiApiKey: "", openaiApiKey: "" };
+}
+async function saveSettings(settings) {
+  await chrome.storage.local.set({ settings });
 }
 async function checkAIAvailability() {
+  const settings = await getSettings();
+  switch (settings.provider) {
+    case "chrome-ai":
+      return checkChromeAI();
+    case "gemini":
+      return checkGeminiAPI(settings.geminiApiKey);
+    case "openai":
+      return checkOpenAIAPI(settings.openaiApiKey);
+    default:
+      return { status: "error", message: "不明なプロバイダーです" };
+  }
+}
+async function checkChromeAI() {
+  var _a;
   try {
-    const ai = getAI();
-    if (!ai) {
-      return {
-        status: "unavailable",
-        message: "Chrome Built-in AI APIが利用できません。Chrome 138以上が必要で、chrome://flags でPrompt APIを有効にしてください。"
-      };
+    if (typeof self !== "undefined" && ((_a = self.ai) == null ? void 0 : _a.languageModel)) {
+      const capabilities = await self.ai.languageModel.capabilities();
+      if (capabilities.available === "readily") {
+        return { status: "ready", message: "Chrome AI準備完了", provider: "chrome-ai" };
+      } else if (capabilities.available === "after-download") {
+        return { status: "downloading", message: "AIモデルをダウンロード中", provider: "chrome-ai" };
+      }
     }
-    try {
-      const capabilities = await ai.capabilities();
-      return mapAvailability(capabilities.available);
-    } catch {
-      const availability = await ai.availability();
-      return mapAvailability(availability);
-    }
+    return {
+      status: "unavailable",
+      message: "Chrome AIが利用できません。Gemini APIまたはOpenAI APIを設定してください。",
+      provider: "chrome-ai"
+    };
   } catch (error) {
-    console.error("AI availability check failed:", error);
     return {
       status: "error",
-      message: `AIの確認中にエラーが発生しました: ${error instanceof Error ? error.message : String(error)}`
+      message: `Chrome AI エラー: ${error instanceof Error ? error.message : String(error)}`,
+      provider: "chrome-ai"
     };
   }
 }
-function mapAvailability(available) {
-  switch (available) {
-    case "readily":
-      return { status: "ready", message: "AIは利用可能です" };
-    case "after-download":
-      return {
-        status: "downloading",
-        message: "AIモデルをダウンロード中です。初回のみ時間がかかります。"
-      };
-    case "no":
-      return {
-        status: "unavailable",
-        message: "このデバイスではAIを利用できません。システム要件を確認してください。"
-      };
+function checkGeminiAPI(apiKey) {
+  if (!apiKey) {
+    return {
+      status: "no-api-key",
+      message: "Gemini APIキーが設定されていません。設定画面でAPIキーを入力してください。",
+      provider: "gemini"
+    };
+  }
+  return { status: "ready", message: "Gemini API準備完了", provider: "gemini" };
+}
+function checkOpenAIAPI(apiKey) {
+  if (!apiKey) {
+    return {
+      status: "no-api-key",
+      message: "OpenAI APIキーが設定されていません。設定画面でAPIキーを入力してください。",
+      provider: "openai"
+    };
+  }
+  return { status: "ready", message: "OpenAI API準備完了", provider: "openai" };
+}
+async function generateScript(userPrompt) {
+  const settings = await getSettings();
+  switch (settings.provider) {
+    case "chrome-ai":
+      return generateWithChromeAI(userPrompt);
+    case "gemini":
+      return generateWithGemini(userPrompt, settings.geminiApiKey);
+    case "openai":
+      return generateWithOpenAI(userPrompt, settings.openaiApiKey);
     default:
-      return {
-        status: "error",
-        message: `不明なステータスです: ${available}。chrome://flags でPrompt APIを有効にしてください。`
-      };
+      throw new Error("不明なプロバイダーです");
   }
 }
-async function getSession() {
-  if (cachedSession) {
-    return cachedSession;
+async function generateWithChromeAI(userPrompt) {
+  var _a;
+  if (!((_a = self.ai) == null ? void 0 : _a.languageModel)) {
+    throw new Error("Chrome AIが利用できません");
   }
-  const ai = getAI();
-  if (!ai) {
-    throw new Error("LanguageModel APIが利用できません。chrome://flags でPrompt APIを有効にしてください。");
-  }
-  cachedSession = await ai.create({
+  const session = await self.ai.languageModel.create({
     systemPrompt: SYSTEM_PROMPT,
     temperature: 0.3,
     topK: 3
   });
-  return cachedSession;
+  const fullPrompt = `指示: ${userPrompt}
+
+JavaScriptコードのみを出力:`;
+  const response = await session.prompt(fullPrompt);
+  session.destroy();
+  return extractCode(response);
 }
-async function generateScript(userPrompt) {
-  const session = await getSession();
-  const fullPrompt = `以下の指示に従って、ウェブページで実行するJavaScriptコードを生成してください。
+async function generateWithGemini(userPrompt, apiKey) {
+  var _a, _b, _c, _d, _e, _f;
+  if (!apiKey) {
+    throw new Error("Gemini APIキーが設定されていません");
+  }
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: `${SYSTEM_PROMPT}
 
 指示: ${userPrompt}
 
-JavaScriptコードのみを出力してください:`;
-  const response = await session.prompt(fullPrompt);
+JavaScriptコードのみを出力:`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 2048
+        }
+      })
+    }
+  );
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Gemini API エラー: ${((_a = error.error) == null ? void 0 : _a.message) || response.statusText}`);
+  }
+  const data = await response.json();
+  const text = ((_f = (_e = (_d = (_c = (_b = data.candidates) == null ? void 0 : _b[0]) == null ? void 0 : _c.content) == null ? void 0 : _d.parts) == null ? void 0 : _e[0]) == null ? void 0 : _f.text) || "";
+  return extractCode(text);
+}
+async function generateWithOpenAI(userPrompt, apiKey) {
+  var _a, _b, _c, _d;
+  if (!apiKey) {
+    throw new Error("OpenAI APIキーが設定されていません");
+  }
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `指示: ${userPrompt}
+
+JavaScriptコードのみを出力:` }
+      ],
+      temperature: 0.3,
+      max_tokens: 2048
+    })
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`OpenAI API エラー: ${((_a = error.error) == null ? void 0 : _a.message) || response.statusText}`);
+  }
+  const data = await response.json();
+  const text = ((_d = (_c = (_b = data.choices) == null ? void 0 : _b[0]) == null ? void 0 : _c.message) == null ? void 0 : _d.content) || "";
+  return extractCode(text);
+}
+function extractCode(response) {
   const codeMatch = response.match(/```(?:javascript|js)?\s*([\s\S]*?)```/);
   if (codeMatch) {
     return codeMatch[1].trim();
   }
   return response.trim();
-}
-function resetSession() {
-  if (cachedSession) {
-    cachedSession.destroy();
-    cachedSession = null;
-  }
 }
 function isScriptingAvailable() {
   return typeof chrome !== "undefined" && typeof chrome.scripting !== "undefined";
@@ -176,17 +255,12 @@ chrome.runtime.onMessage.addListener(
 async function handleMessage(message) {
   switch (message.type) {
     case "CHECK_AI_STATUS": {
-      const { status, message: statusMessage } = await checkAIAvailability();
-      return { type: "AI_STATUS", status, message: statusMessage };
+      const { status, message: statusMessage, provider } = await checkAIAvailability();
+      return { type: "AI_STATUS", status, message: statusMessage, provider };
     }
     case "GENERATE_SCRIPT": {
-      try {
-        const code = await generateScript(message.prompt);
-        return { type: "SCRIPT_GENERATED", code };
-      } catch (error) {
-        resetSession();
-        throw error;
-      }
+      const code = await generateScript(message.prompt);
+      return { type: "SCRIPT_GENERATED", code };
     }
     case "EXECUTE_SCRIPT": {
       const result = await executeScript(message.tabId, message.code);
@@ -199,6 +273,14 @@ async function handleMessage(message) {
       }
       throw new Error("アクティブなタブが見つかりません");
     }
+    case "GET_SETTINGS": {
+      const settings = await getSettings();
+      return { type: "SETTINGS", settings };
+    }
+    case "SAVE_SETTINGS": {
+      await saveSettings(message.settings);
+      return { type: "SETTINGS_SAVED" };
+    }
     default:
       throw new Error("不明なメッセージタイプです");
   }
@@ -206,6 +288,7 @@ async function handleMessage(message) {
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === "install") {
     console.log("Offline AI Script Generator がインストールされました");
+    chrome.runtime.openOptionsPage();
   } else if (details.reason === "update") {
     console.log(`バージョン ${chrome.runtime.getManifest().version} に更新されました`);
   }

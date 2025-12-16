@@ -11,7 +11,7 @@ function copyPublicPlugin() {
       const outDir = 'OfflineAIPromptGenerator';
       const publicDir = 'public';
 
-      // publicフォルダの内容を再帰的にコピー（popup.htmlは除く）
+      // publicフォルダの内容を再帰的にコピー（HTMLは除く）
       function copyDir(src: string, dest: string) {
         if (!existsSync(dest)) {
           mkdirSync(dest, { recursive: true });
@@ -23,8 +23,8 @@ function copyPublicPlugin() {
           if (statSync(srcPath).isDirectory()) {
             copyDir(srcPath, destPath);
           } else {
-            // popup.htmlは除外（Viteがビルド済み）
-            if (entry !== 'popup.html') {
+            // HTMLファイルは除外（Viteがビルド済み）
+            if (!entry.endsWith('.html')) {
               copyFileSync(srcPath, destPath);
             }
           }
@@ -33,11 +33,13 @@ function copyPublicPlugin() {
 
       copyDir(publicDir, outDir);
 
-      // 不要なルートのpopup.htmlを削除
-      const rootPopupHtml = resolve(outDir, 'popup.html');
-      if (existsSync(rootPopupHtml)) {
-        unlinkSync(rootPopupHtml);
-        console.log('✓ Removed duplicate popup.html from root');
+      // 不要なルートのHTMLファイルを削除
+      const filesToRemove = ['popup.html', 'options.html'];
+      for (const file of filesToRemove) {
+        const filePath = resolve(outDir, file);
+        if (existsSync(filePath)) {
+          unlinkSync(filePath);
+        }
       }
 
       console.log('✓ Public files copied to output directory');
@@ -47,19 +49,19 @@ function copyPublicPlugin() {
 
 export default defineConfig({
   plugins: [react(), copyPublicPlugin()],
-  base: './', // 相対パスで出力（Chrome拡張機能用）
+  base: './',
   build: {
     outDir: 'OfflineAIPromptGenerator',
     emptyDirBeforeWrite: true,
-    minify: false, // デバッグしやすくするため
+    minify: false,
     rollupOptions: {
       input: {
         popup: resolve(__dirname, 'public/popup.html'),
+        options: resolve(__dirname, 'public/options.html'),
         'service-worker': resolve(__dirname, 'src/background/service-worker.ts'),
       },
       output: {
         entryFileNames: (chunkInfo) => {
-          // service-workerはルートに配置
           if (chunkInfo.name === 'service-worker') {
             return '[name].js';
           }

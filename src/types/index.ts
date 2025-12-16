@@ -2,8 +2,25 @@
  * アプリケーション共通型定義
  */
 
+// AIプロバイダー
+export type AIProvider = 'chrome-ai' | 'gemini' | 'openai';
+
 // AIの状態
-export type AIStatus = 'checking' | 'ready' | 'downloading' | 'unavailable' | 'error';
+export type AIStatus = 'checking' | 'ready' | 'downloading' | 'unavailable' | 'error' | 'no-api-key';
+
+// 設定
+export interface Settings {
+  provider: AIProvider;
+  geminiApiKey: string;
+  openaiApiKey: string;
+}
+
+// デフォルト設定
+export const DEFAULT_SETTINGS: Settings = {
+  provider: 'gemini',
+  geminiApiKey: '',
+  openaiApiKey: '',
+};
 
 // スクリプト実行結果
 export interface ScriptExecutionResult {
@@ -27,11 +44,15 @@ export type MessageType =
   | { type: 'CHECK_AI_STATUS' }
   | { type: 'GENERATE_SCRIPT'; prompt: string }
   | { type: 'EXECUTE_SCRIPT'; code: string; tabId: number }
-  | { type: 'GET_CURRENT_TAB' };
+  | { type: 'GET_CURRENT_TAB' }
+  | { type: 'GET_SETTINGS' }
+  | { type: 'SAVE_SETTINGS'; settings: Settings };
 
 export type MessageResponse =
-  | { type: 'AI_STATUS'; status: AIStatus; message?: string }
+  | { type: 'AI_STATUS'; status: AIStatus; message?: string; provider?: AIProvider }
   | { type: 'SCRIPT_GENERATED'; code: string }
   | { type: 'SCRIPT_EXECUTED'; result: ScriptExecutionResult }
   | { type: 'CURRENT_TAB'; tabId: number; url: string }
+  | { type: 'SETTINGS'; settings: Settings }
+  | { type: 'SETTINGS_SAVED' }
   | { type: 'ERROR'; message: string };

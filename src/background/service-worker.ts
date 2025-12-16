@@ -3,7 +3,7 @@
  * AI生成とスクリプト実行のメッセージハンドリング
  */
 
-import { checkAIAvailability, generateScript, resetSession } from '../lib/ai';
+import { checkAIAvailability, generateScript, getSettings, saveSettings } from '../lib/ai';
 import { executeScript, getCurrentTab } from '../lib/userScripts';
 import type { MessageType, MessageResponse } from '../types';
 
@@ -35,19 +35,13 @@ chrome.runtime.onMessage.addListener(
 async function handleMessage(message: MessageType): Promise<MessageResponse> {
   switch (message.type) {
     case 'CHECK_AI_STATUS': {
-      const { status, message: statusMessage } = await checkAIAvailability();
-      return { type: 'AI_STATUS', status, message: statusMessage };
+      const { status, message: statusMessage, provider } = await checkAIAvailability();
+      return { type: 'AI_STATUS', status, message: statusMessage, provider };
     }
 
     case 'GENERATE_SCRIPT': {
-      try {
-        const code = await generateScript(message.prompt);
-        return { type: 'SCRIPT_GENERATED', code };
-      } catch (error) {
-        // セッションリセットして再試行
-        resetSession();
-        throw error;
-      }
+      const code = await generateScript(message.prompt);
+      return { type: 'SCRIPT_GENERATED', code };
     }
 
     case 'EXECUTE_SCRIPT': {
@@ -63,6 +57,16 @@ async function handleMessage(message: MessageType): Promise<MessageResponse> {
       throw new Error('アクティブなタブが見つかりません');
     }
 
+    case 'GET_SETTINGS': {
+      const settings = await getSettings();
+      return { type: 'SETTINGS', settings };
+    }
+
+    case 'SAVE_SETTINGS': {
+      await saveSettings(message.settings);
+      return { type: 'SETTINGS_SAVED' };
+    }
+
     default:
       throw new Error('不明なメッセージタイプです');
   }
@@ -72,6 +76,8 @@ async function handleMessage(message: MessageType): Promise<MessageResponse> {
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install') {
     console.log('Offline AI Script Generator がインストールされました');
+    // 初回インストール時に設定画面を開く
+    chrome.runtime.openOptionsPage();
   } else if (details.reason === 'update') {
     console.log(`バージョン ${chrome.runtime.getManifest().version} に更新されました`);
   }

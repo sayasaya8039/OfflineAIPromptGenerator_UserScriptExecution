@@ -3,17 +3,23 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import type { AIStatus, ScriptExecutionResult, MessageResponse } from '../types';
+import type { AIStatus, AIProvider, ScriptExecutionResult, MessageResponse } from '../types';
 import './styles/popup.css';
 
-// バージョン取得
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
+
+const PROVIDER_NAMES: Record<AIProvider, string> = {
+  'chrome-ai': 'Chrome AI',
+  'gemini': 'Gemini',
+  'openai': 'OpenAI',
+};
 
 export function Popup() {
   const [prompt, setPrompt] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
   const [aiStatus, setAiStatus] = useState<AIStatus>('checking');
   const [statusMessage, setStatusMessage] = useState('AIの状態を確認中...');
+  const [currentProvider, setCurrentProvider] = useState<AIProvider>('gemini');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<ScriptExecutionResult | null>(null);
@@ -24,20 +30,28 @@ export function Popup() {
   useEffect(() => {
     // AI状態チェック
     chrome.runtime.sendMessage({ type: 'CHECK_AI_STATUS' }, (response: MessageResponse) => {
-      if (response.type === 'AI_STATUS') {
+      if (response?.type === 'AI_STATUS') {
         setAiStatus(response.status);
         setStatusMessage(response.message || '');
+        if (response.provider) {
+          setCurrentProvider(response.provider);
+        }
       }
     });
 
     // 現在のタブを取得
     chrome.runtime.sendMessage({ type: 'GET_CURRENT_TAB' }, (response: MessageResponse) => {
-      if (response.type === 'CURRENT_TAB') {
+      if (response?.type === 'CURRENT_TAB') {
         setCurrentTabId(response.tabId);
         setCurrentUrl(response.url);
       }
     });
   }, []);
+
+  // 設定画面を開く
+  const openOptions = () => {
+    chrome.runtime.openOptionsPage();
+  };
 
   // コード生成
   const handleGenerate = useCallback(async () => {
@@ -57,9 +71,11 @@ export function Popup() {
         setGeneratedCode(response.code);
       } else if (response.type === 'ERROR') {
         setStatusMessage(`エラー: ${response.message}`);
+        setAiStatus('error');
       }
     } catch (error) {
       setStatusMessage(`生成エラー: ${error instanceof Error ? error.message : String(error)}`);
+      setAiStatus('error');
     } finally {
       setIsGenerating(false);
     }
@@ -107,7 +123,6 @@ export function Popup() {
     setGeneratedCode('');
 
     try {
-      // 1. コード生成
       const genResponse = await chrome.runtime.sendMessage({
         type: 'GENERATE_SCRIPT',
         prompt: prompt.trim(),
@@ -120,7 +135,6 @@ export function Popup() {
       setGeneratedCode(genResponse.code);
       setIsGenerating(false);
 
-      // 2. 実行
       if (currentTabId) {
         setIsExecuting(true);
         const execResponse = await chrome.runtime.sendMessage({
@@ -135,6 +149,7 @@ export function Popup() {
       }
     } catch (error) {
       setStatusMessage(`エラー: ${error instanceof Error ? error.message : String(error)}`);
+      setAiStatus('error');
     } finally {
       setIsGenerating(false);
       setIsExecuting(false);
@@ -145,9 +160,10 @@ export function Popup() {
   const getStatusBadge = () => {
     const badges: Record<AIStatus, { class: string; text: string }> = {
       checking: { class: 'badge-checking', text: '確認中...' },
-      ready: { class: 'badge-ready', text: 'AI準備完了' },
+      ready: { class: 'badge-ready', text: `${PROVIDER_NAMES[currentProvider]} 準備完了` },
       downloading: { class: 'badge-downloading', text: 'ダウンロード中' },
       unavailable: { class: 'badge-unavailable', text: '利用不可' },
+      'no-api-key': { class: 'badge-warning', text: 'APIキー未設定' },
       error: { class: 'badge-error', text: 'エラー' },
     };
     const badge = badges[aiStatus];
@@ -155,6 +171,7 @@ export function Popup() {
   };
 
   const isReady = aiStatus === 'ready';
+  const needsSetup = aiStatus === 'no-api-key' || aiStatus === 'unavailable';
   const canExecute = !!generatedCode && !!currentTabId;
 
   return (
@@ -169,9 +186,14 @@ export function Popup() {
       </header>
 
       {/* ステータスメッセージ */}
-      {statusMessage && aiStatus !== 'ready' && (
+      {statusMessage && !isReady && (
         <div className={`status-message status-${aiStatus}`}>
           {statusMessage}
+          {needsSetup && (
+            <button className="btn-link" onClick={openOptions}>
+              設定を開く
+            </button>
+          )}
         </div>
       )}
 
@@ -257,7 +279,10 @@ export function Popup() {
 
       {/* フッター */}
       <footer className="footer">
-        <span>Powered by Gemini Nano (Chrome Built-in AI)</span>
+        <span>Powered by {PROVIDER_NAMES[currentProvider]}</span>
+        <button className="btn-settings" onClick={openOptions} title="設定">
+          ⚙️
+        </button>
       </footer>
     </div>
   );

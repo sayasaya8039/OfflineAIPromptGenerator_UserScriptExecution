@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Offline AI Script Generator",
-  "version": "1.0.0",
-  "description": "オフラインAI（Gemini Nano）でJavaScriptコードを自動生成し、ページに即実行できるChrome拡張機能",
+  "version": "1.1.0",
+  "description": "AI（Gemini/OpenAI/Chrome AI）でJavaScriptコードを自動生成し、ページに即実行できるChrome拡張機能",
   "permissions": [
     "activeTab",
     "scripting",
-    "userScripts"
+    "userScripts",
+    "storage"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -15,9 +16,10 @@
     "default_popup": "public/popup.html",
     "default_title": "Offline AI Script Generator"
   },
+  "options_page": "public/options.html",
   "background": {
     "service_worker": "service-worker.js",
     "type": "module"
   },
-  "minimum_chrome_version": "138"
+  "minimum_chrome_version": "120"
 }
